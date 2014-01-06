@@ -117,12 +117,25 @@ sub new {
             ? sub { $self->{timeout} = AE::timer($timeout, 0, sub { $on_error->('timeout') }) }
             : sub {};
 
+        my $not_complete_json;
+
         my $on_json_message = sub {
             my ($json) = @_;
 
             # Twitter stream returns "\x0a\x0d\x0a" if there's no matched tweets in ~30s.
             $set_timeout->();
             if ($json !~ /^\s*$/) {
+
+                if($json =~ /\n$/){
+                    $json = $not_complete_json . $json;
+                    $not_complete_json = '';
+                }
+                else{
+                    # decode_json error.
+                    $not_complete_json .= $json;
+                    return;
+                }
+
                 my $tweet = $decode_json ? JSON::decode_json($json) : $json;
                 if ($on_delete && $tweet->{delete} && $tweet->{delete}->{status}) {
                     $on_delete->($tweet->{delete}->{status}->{id}, $tweet->{delete}->{status}->{user_id});
